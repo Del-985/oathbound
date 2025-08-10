@@ -1,4 +1,5 @@
 #include "game/encounter.hpp"
+#include "game/combat_math.hpp"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
@@ -6,18 +7,19 @@
 namespace game {
 
 void Encounter::run() {
+    // Ensure actor weapon matches inventory at start if equipped
+    if (const Weapon* eq = inventory.equipped()) {
+        player.weapon = *eq;
+    }
     std::cout << "You wield " << player.weapon.label() << "\n\n";
+
     int round = 1;
+    auto anyAlive = [&]{ for (const auto& e : enemies) if (e.alive()) return true; return false; };
 
-    auto anyEnemiesAlive = [&](){
-        for (const auto& e : enemies) if (e.alive()) return true;
-        return false;
-    };
-
-    while (player.alive() && anyEnemiesAlive()) {
+    while (player.alive() && anyAlive()) {
         std::cout << "=== Round " << round++ << " ===\n";
 
-        // Player turn: attack first alive enemy
+        // Player turn
         auto it = std::find_if(enemies.begin(), enemies.end(), [](const Actor& e){ return e.alive(); });
         if (it != enemies.end()) {
             Actor& target = *it;
@@ -30,12 +32,20 @@ void Encounter::run() {
             }
             if (!target.alive()) {
                 std::cout << target.name << " is slain!\n";
-                // Drop and naive auto-equip if higher max damage
+
+                // Drop → add to inventory
                 Weapon drop = loots.rollWeapon(rng, /*level*/1);
                 std::cout << "Loot dropped: " << drop.label() << "\n";
-                if (drop.maxDmg() > player.weapon.maxDmg()) {
-                    std::cout << "You equip the new weapon.\n";
-                    player.weapon = drop;
+                std::size_t idx = inventory.add(std::move(drop));
+
+                // Compare DPR and auto-equip if better
+                const double cur = expectedDPR(player.weapon);
+                const double cand = expectedDPR(inventory.at(idx));
+                if (cand > cur) {
+                    inventory.equip(idx);
+                    player.weapon = *inventory.equipped(); // sync
+                    std::cout << "Auto-equipped better weapon ("
+                              << cand << " DPR > " << cur << " DPR).\n";
                 }
             }
         }
@@ -55,11 +65,8 @@ void Encounter::run() {
         std::cout << "\n";
     }
 
-    if (player.alive()) {
-        std::cout << "Victory! You survived with " << player.hp << " HP.\n";
-    } else {
-        std::cout << "Defeat. You died.\n";
-    }
+    std::cout << (player.alive() ? "Victory! You survived with " + std::to_string(player.hp) + " HP.\n"
+                                 : "Defeat. You died.\n");
 }
 
 } // namespace game
