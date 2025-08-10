@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <algorithm>
+#include "core/rng.hpp"
 
 namespace core {
 
