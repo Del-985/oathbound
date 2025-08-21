@@ -1,3 +1,7 @@
+/*
+
+DEPRECATED
+
 #pragma once
 #include <string>
 #include <vector>
@@ -25,3 +29,6 @@ struct Weapon {
 };
 
 } // namespace game
+
+
+*/
