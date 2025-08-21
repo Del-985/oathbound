@@ -15,7 +15,7 @@ public:
         prefix_.push_back(total_);
     }
 
-    const T& pick(class RNG& rng) const {
+    const T& pick(RNG& rng) const {
         double r = rng.f(0.0, total_);
         auto it = std::lower_bound(prefix_.begin(), prefix_.end(), r);
         size_t idx = static_cast<size_t>(std::distance(prefix_.begin(), it));
