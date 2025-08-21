@@ -18,20 +18,19 @@ struct Item {
 
     // Kind + placement
     ItemKind    kind   = ItemKind::Gear;   // Weapon or Gear
-    Slot        slot   = Slot::Armor;      // For Gear: Armor/Helmet/.../Offhand; For Weapon: usually Slot::Weapon
+    Slot        slot   = Slot::Armor;      // Weapon uses Slot::Weapon; shield uses Slot::Offhand
 
-    // Stats
-    // Weapon fields (used when kind==Weapon)
+    // Weapon stats (if kind==Weapon)
     int baseMin = 0;
     int baseMax = 0;
 
-    // Gear fields (used when kind==Gear)
+    // Gear stats (if kind==Gear)
     int armorBonus = 0;
 
-    // Shared modifiers (prefix/suffix effects)
+    // Modifiers
     std::vector<Affix> affixes;
 
-    // ---- helpers ----
+    // Helpers
     bool isWeapon() const { return kind == ItemKind::Weapon; }
     bool isShield() const { return kind == ItemKind::Gear && slot == Slot::Offhand && armorBonus > 0; }
 
@@ -47,15 +46,9 @@ struct Item {
         for (auto& a: affixes) M += a.flatMax;
         return std::max(minDmg(), M);
     }
-    double pctDamage() const {
-        double p = 0.0; for (auto& a: affixes) p += a.pctDamage; return p;
-    }
-    double critChance() const {
-        double c = 0.0; for (auto& a: affixes) c += a.critChance; return std::clamp(c, 0.0, 0.95);
-    }
-    double attackSpeed() const {
-        double s = 0.0; for (auto& a: affixes) s += a.attackSpeed; return s;
-    }
+    double pctDamage() const { double p=0; for (auto& a: affixes) p += a.pctDamage; return p; }
+    double critChance() const { double c=0; for (auto& a: affixes) c += a.critChance; return std::clamp(c,0.0,0.95); }
+    double attackSpeed() const { double s=0; for (auto& a: affixes) s += a.attackSpeed; return s; }
     double critMult() const { return 1.5; }
 
     std::string label() const {
