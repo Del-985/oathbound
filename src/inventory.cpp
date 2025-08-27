@@ -1,16 +1,17 @@
 #include "game/inventory.hpp"
-#include "game/combat_math.hpp"
 #include <limits>
 #include <algorithm>
 
 namespace game {
 
-std::size_t Inventory::add(Weapon w) {
+std::size_t Inventory::addWeapon(Item w) {
+    if (!w.isWeapon()) return npos;
     weapons_.push_back(std::move(w));
     return weapons_.size() - 1;
 }
 
-std::size_t Inventory::add(Gear g) {
+std::size_t Inventory::addGear(Item g) {
+    if (g.isWeapon()) return npos;
     gear_.push_back(std::move(g));
     return gear_.size() - 1;
 }
@@ -18,21 +19,27 @@ std::size_t Inventory::add(Gear g) {
 bool Inventory::equip(std::size_t idx) {
     if (idx >= weapons_.size()) return false;
     eq_.mainHand = idx;
+    if (weapons_[idx].twoHanded) { // occupy both hands
+        eq_.offHandWpn    = npos;
+        eq_.offHandShield = npos;
+    }
     return true;
 }
 
 bool Inventory::equipOffhand(std::size_t idx) {
     if (idx >= weapons_.size()) return false;
-    eq_.offHandWpn = idx;
-    eq_.offHandShield = npos; // cannot use shield at same time
+    if (weapons_[idx].twoHanded) return false; // can't put a 2H in off-hand
+    eq_.offHandWpn    = idx;
+    eq_.offHandShield = npos;
     return true;
 }
 
-const Weapon* Inventory::equipped() const {
+const Item* Inventory::equipped() const {
     if (eq_.mainHand == npos || eq_.mainHand >= weapons_.size()) return nullptr;
     return &weapons_[eq_.mainHand];
 }
-const Weapon* Inventory::equippedOffhand() const {
+
+const Item* Inventory::equippedOffhand() const {
     if (eq_.offHandWpn == npos || eq_.offHandWpn >= weapons_.size()) return nullptr;
     return &weapons_[eq_.offHandWpn];
 }
@@ -46,7 +53,7 @@ static void setSlotIndex(Inventory::Equipped& eq, Slot slot, std::size_t idx, bo
         case Slot::Amulet: eq.amulet = idx; break;
         case Slot::Ring1:  eq.ring1  = idx; break;
         case Slot::Ring2:  eq.ring2  = idx; break;
-        case Slot::Offhand: ok = false; return; // handled via eq_.offHandShield below
+        case Slot::Offhand: ok = false; return; // handled via offHandShield
         case Slot::Weapon:  ok = false; return; // use equip()
     }
     ok = true;
@@ -54,25 +61,26 @@ static void setSlotIndex(Inventory::Equipped& eq, Slot slot, std::size_t idx, bo
 
 bool Inventory::equipGear(std::size_t gearIdx) {
     if (gearIdx >= gear_.size()) return false;
-    const Gear& g = gear_[gearIdx];
-    if (g.slot == Slot::Offhand) {
+    const Item& g = gear_[gearIdx];
+
+    if (g.slot == Slot::Offhand) { // shield / off-hand gear
         eq_.offHandShield = gearIdx;
-        eq_.offHandWpn = npos;
+        eq_.offHandWpn    = npos;
         return true;
     }
+
     if (g.slot == Slot::Ring1 || g.slot == Slot::Ring2) {
-        // Allow any Ring item to occupy Ring1 or Ring2: fill empty first
         if (eq_.ring1 == npos) { eq_.ring1 = gearIdx; return true; }
         if (eq_.ring2 == npos) { eq_.ring2 = gearIdx; return true; }
-        // replace Ring1 by default
-        eq_.ring1 = gearIdx;
+        eq_.ring1 = gearIdx; // replace Ring1 by convention
         return true;
     }
+
     bool ok=false; setSlotIndex(eq_, g.slot, gearIdx, ok);
     return ok;
 }
 
-const Gear* Inventory::equipped(Slot slot) const {
+const Item* Inventory::equipped(Slot slot) const {
     std::size_t idx = npos;
     switch (slot) {
         case Slot::Armor:   idx = eq_.armor; break;
@@ -89,9 +97,9 @@ const Gear* Inventory::equipped(Slot slot) const {
     return &gear_[idx];
 }
 
-GearBonuses Inventory::bonuses() const {
-    GearBonuses b;
-    auto addFrom = [&](const Gear* g){
+game::GearBonuses Inventory::bonuses() const {
+    game::GearBonuses b{0,0.0,0.0,0.0};
+    auto addFrom = [&](const Item* g){
         if (!g) return;
         b.armor       += g->armorBonus;
         b.pctDamage   += g->pctDamage();
@@ -105,13 +113,13 @@ GearBonuses Inventory::bonuses() const {
     addFrom(equipped(Slot::Amulet));
     addFrom(equipped(Slot::Ring1));
     addFrom(equipped(Slot::Ring2));
-    addFrom(equipped(Slot::Offhand)); // if shield in offhand; if weapon in offhand, not added here
+    addFrom(equipped(Slot::Offhand));
     return b;
 }
 
 bool Inventory::equipBest() {
     if (weapons_.empty()) return false;
-    GearBonuses b = bonuses();
+    game::GearBonuses b = bonuses();
     double best = -std::numeric_limits<double>::infinity();
     std::size_t bestIdx = 0;
     for (std::size_t i=0;i<weapons_.size();++i) {
