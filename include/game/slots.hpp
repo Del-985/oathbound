@@ -1,4 +1,5 @@
 #pragma once
+
 namespace game {
 
 enum class Slot { Weapon, Offhand, Armor, Helmet, Boots, Belt, Amulet, Ring1, Ring2 };
